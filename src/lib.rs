@@ -13,20 +13,30 @@ header! { (XGitHubEvent, "X-GitHub-Event") => [String] }
 header! { (XGitHubDelivery, "X-GitHub-Delivery") => [String] }
 header! { (XHubSignature, "X-Hub-Signature") => [String] }
 
-pub fn check_signature(request: &mut Request, signature: &XHubSignature, secret: &str) -> bool {
+pub type DeployResult<T> = Result<T, String>;
+
+pub fn check_signature(request: &mut Request, signature: &XHubSignature, secret: &str) -> DeployResult<bool> {
   let (method, hash) = {
     let mut split = signature.split('=');
-    (split.next().unwrap(), split.next().unwrap())
+    let method = match split.next() {
+      Some(x) => x,
+      None => return Err("invalid signature".into())
+    };
+    let hash = match split.next() {
+      Some(x) => x,
+      None => return Err("invalid signature".into())
+    };
+    (method, hash)
   };
   if method != "sha1" {
-    return false;
+    return Err("invalid signature method (non-sha1)".into());
   }
-  let hash = hex_string_to_bytes(hash);
+  let hash = try!(hex_string_to_bytes(hash));
   let mut bytes: Vec<u8> = Vec::new();
   request.read_to_end(&mut bytes);
   let result = build_sha1_hmac(secret, &bytes).result();
   let check_against = MacResult::new(&hash);
-  result == check_against
+  Ok(result == check_against)
 }
 
 fn build_sha1_hmac(secret: &str, input: &[u8]) -> Hmac<Sha1> {
@@ -35,14 +45,18 @@ fn build_sha1_hmac(secret: &str, input: &[u8]) -> Hmac<Sha1> {
   hmac
 }
 
-pub fn hex_string_to_bytes(hex_string: &str) -> Vec<u8> {
+pub fn hex_string_to_bytes(hex_string: &str) -> DeployResult<Vec<u8>> {
   let char_vec = hex_string.chars().collect::<Vec<_>>();
   let chunks = char_vec.chunks(2);
-  chunks
+  let parsed: Vec<_> = chunks
     .map(|x| u8::from_str_radix(
         x.into_iter().cloned().collect::<String>().as_str(),
         16
-      ).unwrap()
+      )
     )
-    .collect::<Vec<_>>()
+    .collect();
+  if parsed.iter().any(|x| x.is_err()) {
+    return Err("could not parse hex string".into());
+  }
+  Ok(parsed.into_iter().flat_map(|x| x).collect())
 }

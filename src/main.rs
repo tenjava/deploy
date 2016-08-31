@@ -17,21 +17,53 @@ lazy_static! {
 }
 
 fn deploy_webhook(r: &mut Request) -> PencilResult {
+  println!("receiving a deploy request");
   let (signature, event) = {
     let headers = r.headers();
-    let signature: &XHubSignature = headers.get().unwrap();
-    let event: &XGitHubEvent = headers.get().unwrap();
+    let signature: &XHubSignature = match headers.get() {
+      Some(x) => x,
+      None => {
+        let mut res = Response::new("missing a signature header");
+        res.status_code = 401;
+        return Ok(res);
+      }
+    };
+    let event: &XGitHubEvent = match headers.get() {
+      Some(x) => x,
+      None => {
+        let mut res = Response::new("missing an event header");
+        res.status_code = 401;
+        return Ok(res);
+      }
+    };
     (signature.clone(), event.clone())
   };
   if *event != "push" {
+    println!("  it was not a push event");
+    println!("  done");
     return Ok("not a push event, but thanks anyway".into());
   }
-  if !deploy::check_signature(r, &signature, &SECRET) {
+  let signature_check = match deploy::check_signature(r, &signature, &SECRET) {
+    Ok(x) => x,
+    Err(e) => {
+      let mut res = Response::new(format!("an error occurred while checking signature: {}", e));
+      res.status_code = 500;
+      return Ok(res);
+    }
+  };
+  if !signature_check {
+    println!("  it had an invalid signature");
+    println!("  done");
     let mut res = Response::new("invalid signature");
     res.status_code = 401;
     return Ok(res);
   }
+  println!("  everything checks out");
+  println!("  spawning update thread");
   update_repo();
+  println!("  thread spawned");
+  println!("  done");
+  println!("");
   Ok("deploy initiated".into())
 }
 
@@ -52,6 +84,8 @@ fn update_repo() {
           println!("git exited with an unknown status code");
         }
       }
+    } else {
+      println!("git exited successfully")
     }
   });
 }

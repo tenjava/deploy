@@ -1,12 +1,12 @@
-extern crate pencil;
 #[macro_use] extern crate hyper;
 extern crate crypto;
+extern crate pencil;
 
-use std::io::Read;
 use crypto::hmac::Hmac;
-use crypto::sha1::Sha1;
 use crypto::mac::{Mac, MacResult};
+use crypto::sha1::Sha1;
 use pencil::Request;
+use std::io::Read;
 
 header! { (XGitHubEvent, "X-GitHub-Event") => [String] }
 header! { (XGitHubDelivery, "X-GitHub-Delivery") => [String] }

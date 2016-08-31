@@ -1,15 +1,15 @@
-extern crate dotenv;
-extern crate deploy;
-extern crate pencil;
 #[macro_use] extern crate lazy_static;
+extern crate deploy;
+extern crate dotenv;
+extern crate pencil;
 
-use dotenv::dotenv;
-use std::env;
-use std::thread;
-use std::process::{Stdio, Command};
-use std::path::Path;
-use pencil::{Pencil, Response, Request, PencilResult};
 use deploy::*;
+use dotenv::dotenv;
+use pencil::{Pencil, Response, Request, PencilResult};
+use std::env;
+use std::path::Path;
+use std::process::{Stdio, Command};
+use std::thread;
 
 lazy_static! {
   pub static ref SECRET: String = env::var("TENJAVA_DEPLOY_SECRET").expect("missing TENJAVA_DEPLOY_SECRET");

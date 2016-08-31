@@ -33,7 +33,12 @@ pub fn check_signature(request: &mut Request, signature: &XHubSignature, secret:
   }
   let hash = try!(hex_string_to_bytes(hash));
   let mut bytes: Vec<u8> = Vec::new();
-  request.read_to_end(&mut bytes);
+  match request.read_to_end(&mut bytes) {
+    Ok(_) => {},
+    Err(e) => {
+      return Err(format!("could not read request: {}", e));
+    }
+  }
   let result = build_sha1_hmac(secret, &bytes).result();
   let check_against = MacResult::new(&hash);
   Ok(result == check_against)

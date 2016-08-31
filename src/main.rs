@@ -19,8 +19,13 @@ fn deploy_webhook(r: &mut Request) -> PencilResult {
     let event: &XGitHubEvent = headers.get().unwrap();
     (signature.clone(), event.clone())
   };
+  if *event != "push" {
+    return Ok("not a push event, but thanks anyway".into());
+  }
   if !deploy::check_signature(r, &signature, &SECRET) {
-    return Ok("no".into());
+    let mut res = Response::new("invalid signature");
+    res.status_code = 401;
+    return Ok(res);
   }
   Ok("okay".into())
 }

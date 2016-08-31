@@ -1,0 +1,11 @@
+[package]
+name = "deploy"
+version = "0.1.0"
+authors = ["Kyle Clemens <me@kyleclemens.com>"]
+
+[dependencies]
+pencil = "0.2.1"
+dotenv = "0.8.0"
+hyper = "0.9.10"
+rust-crypto = "0.2.36"
+lazy_static = "0.2.1"

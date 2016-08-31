@@ -6,7 +6,6 @@ use std::io::Read;
 use crypto::hmac::Hmac;
 use crypto::sha1::Sha1;
 use crypto::mac::{Mac, MacResult};
-use hyper::header::Headers;
 use pencil::Request;
 
 header! { (XGitHubEvent, "X-GitHub-Event") => [String] }

@@ -34,5 +34,5 @@ fn main() {
   dotenv().ok();
   let mut app = Pencil::new("/static");
   app.get("/deploy", "deploy", deploy_webhook);
-  app.run("127.0.0.1:32260");
+  app.run("0.0.0.0:32260");
 }

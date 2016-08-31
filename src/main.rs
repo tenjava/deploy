@@ -23,6 +23,8 @@ fn deploy_webhook(r: &mut Request) -> PencilResult {
     let signature: &XHubSignature = match headers.get() {
       Some(x) => x,
       None => {
+        println!("  it was missing a signature header");
+        println!("  done");
         let mut res = Response::new("missing a signature header");
         res.status_code = 401;
         return Ok(res);
@@ -31,6 +33,8 @@ fn deploy_webhook(r: &mut Request) -> PencilResult {
     let event: &XGitHubEvent = match headers.get() {
       Some(x) => x,
       None => {
+        println!("  it was missing an event header");
+        println!("  done");
         let mut res = Response::new("missing an event header");
         res.status_code = 401;
         return Ok(res);
@@ -46,6 +50,8 @@ fn deploy_webhook(r: &mut Request) -> PencilResult {
   let signature_check = match deploy::check_signature(r, &signature, &SECRET) {
     Ok(x) => x,
     Err(e) => {
+      println!("  an error occurred while checking the signature: {}", e);
+      println!("  done");
       let mut res = Response::new(format!("an error occurred while checking signature: {}", e));
       res.status_code = 500;
       return Ok(res);

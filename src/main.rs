@@ -33,6 +33,6 @@ fn deploy_webhook(r: &mut Request) -> PencilResult {
 fn main() {
   dotenv().ok();
   let mut app = Pencil::new("/static");
-  app.get("/deploy", "deploy", deploy_webhook);
+  app.post("/deploy", "deploy", deploy_webhook);
   app.run("0.0.0.0:32260");
 }

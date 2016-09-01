@@ -14,6 +14,35 @@ header! { (XHubSignature, "X-Hub-Signature") => [String] }
 
 pub type DeployResult<T> = Result<T, String>;
 
+pub enum Branch {
+  Master,
+  Dev
+}
+
+pub fn get_branch(request: &mut Request) -> DeployResult<Branch> {
+  let json = match *request.get_json() {
+    Some(ref x) => x,
+    None => return Err("couldn't read json from the request".into())
+  };
+  let ref_key = *match json.find("ref") {
+    Some(ref x) => x,
+    None => return Err("json missing 'ref' key".into())
+  };
+  let ref_string = match ref_key.as_string() {
+    Some(x) => x,
+    None => return Err("'ref' key was not a string".into())
+  };
+  let branch = match ref_string.split('/').last() {
+    Some(x) => x,
+    None => return Err("invalid 'ref' key".into())
+  };
+  match branch {
+    "master" => Ok(Branch::Master),
+    "dev" => Ok(Branch::Dev),
+    _ => Err("invalid branch".into())
+  }
+}
+
 pub fn check_signature(request: &mut Request, signature: &XHubSignature, secret: &str) -> DeployResult<bool> {
   let (method, hash) = {
     let mut split = signature.split('=');

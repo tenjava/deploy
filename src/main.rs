@@ -13,7 +13,8 @@ use std::thread;
 
 lazy_static! {
   pub static ref SECRET: String = env::var("TENJAVA_DEPLOY_SECRET").expect("missing TENJAVA_DEPLOY_SECRET");
-  pub static ref REPO: String = env::var("TENJAVA_WEBSITE_REPO").expect("mssing TENJAVA_WEBSITE_REPO");
+  pub static ref PROD_REPO: String = env::var("TENJAVA_WEBSITE_REPO").expect("mssing TENJAVA_WEBSITE_PROD_REPO");
+  pub static ref DEV_REPO: String = env::var("TENJAVA_WEBSITE_REPO").expect("mssing TENJAVA_WEBSITE_DEV_REPO");
 }
 
 fn deploy_webhook(r: &mut Request) -> PencilResult {
@@ -65,20 +66,35 @@ fn deploy_webhook(r: &mut Request) -> PencilResult {
     return Ok(res);
   }
   println!("  everything checks out");
+  println!("  checking branch");
+  let branch = match deploy::get_branch(r) {
+    Ok(b) => b,
+    Err(e) => {
+      println!("  an error occurred while checking branch: {}", e);
+      println!("  done");
+      let mut res = Response::new(format!("couldn't get branch: {}", e));
+      res.status_code = 401;
+      return Ok(res);
+    }
+  };
   println!("  spawning update thread");
-  update_repo();
+  update_repo(&branch);
   println!("  thread spawned");
   println!("  done");
   println!("");
   Ok("deploy initiated".into())
 }
 
-fn update_repo() {
+fn update_repo(branch: &Branch) {
+  let repo_path = match *branch {
+    Branch::Master => &*PROD_REPO,
+    Branch::Dev => &*DEV_REPO
+  };
   thread::spawn(move || {
     let status = Command::new("git")
       .arg("pull")
       .stdout(Stdio::null())
-      .current_dir(Path::new(&*REPO))
+      .current_dir(Path::new(repo_path))
       .status()
       .expect("could not start git");
     if !status.success() {
@@ -105,8 +121,12 @@ fn inner() -> i32 {
     println!("oops, no TENJAVA_DEPLOY_SECRET was specified");
     return 1;
   }
-  if (&*REPO).is_empty() {
-    println!("oops, no TENJAVA_WEBSITE_REPO was specified");
+  if (&*PROD_REPO).is_empty() {
+    println!("oops, no TENJAVA_WEBSITE_PROD_REPO was specified");
+    return 1;
+  }
+  if (&*DEV_REPO).is_empty() {
+    println!("oops, no TENJAVA_WEBSITE_DEV_REPO was specified");
     return 1;
   }
   let mut app = Pencil::new("/static");

@@ -48,7 +48,17 @@ fn deploy_webhook(r: &mut Request) -> PencilResult {
     println!("  done");
     return Ok("not a push event, but thanks anyway".into());
   }
-  let signature_check = match deploy::check_signature(r, &signature, &SECRET) {
+  let bytes = match deploy::get_request_bytes(r) {
+    Ok(x) => x,
+    Err(e) => {
+      println!("  could not read request: {}", e);
+      println!("  done");
+      let mut res = Response::new(format!("could not read request: {}", e));
+      res.status_code = 500;
+      return Ok(res);
+    }
+  };
+  let signature_check = match deploy::check_signature(&bytes, &signature, &SECRET) {
     Ok(x) => x,
     Err(e) => {
       println!("  an error occurred while checking the signature: {}", e);
@@ -67,7 +77,7 @@ fn deploy_webhook(r: &mut Request) -> PencilResult {
   }
   println!("  everything checks out");
   println!("  checking branch");
-  let branch = match deploy::get_branch(r) {
+  let branch = match deploy::get_branch(bytes) {
     Ok(b) => b,
     Err(e) => {
       println!("  an error occurred while checking branch: {}", e);

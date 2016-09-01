@@ -1,6 +1,11 @@
+#![feature(custom_derive, plugin)]
+#![plugin(serde_macros)]
+
 #[macro_use] extern crate hyper;
 extern crate crypto;
 extern crate pencil;
+extern crate serde;
+extern crate serde_json;
 
 use crypto::hmac::Hmac;
 use crypto::mac::{Mac, MacResult};
@@ -19,20 +24,30 @@ pub enum Branch {
   Dev
 }
 
-pub fn get_branch(request: &mut Request) -> DeployResult<Branch> {
-  let json = match *request.get_json() {
-    Some(ref x) => x,
-    None => return Err("couldn't read json from the request".into())
+pub fn get_request_bytes(request: &mut Request) -> DeployResult<Vec<u8>> {
+  let mut bytes: Vec<u8> = Vec::new();
+  match request.read_to_end(&mut bytes) {
+    Ok(_) => Ok(bytes),
+    Err(e) => Err(format!("could not read request: {}", e))
+  }
+}
+
+#[derive(Deserialize)]
+struct DeployRequest {
+  #[serde(rename = "ref")]
+  ref_key: String
+}
+
+pub fn get_branch(bytes: Vec<u8>) -> DeployResult<Branch> {
+  let json_string = match String::from_utf8(bytes) {
+    Ok(x) => x,
+    Err(e) => return Err(format!("could not convert request to string: {}", e))
   };
-  let ref_key = *match json.find("ref") {
-    Some(ref x) => x,
-    None => return Err("json missing 'ref' key".into())
+  let request: DeployRequest = match serde_json::from_str(&json_string) {
+    Ok(x) => x,
+    Err(e) => return Err(format!("could not process json from request: {}", e))
   };
-  let ref_string = match ref_key.as_string() {
-    Some(x) => x,
-    None => return Err("'ref' key was not a string".into())
-  };
-  let branch = match ref_string.split('/').last() {
+  let branch = match request.ref_key.split('/').last() {
     Some(x) => x,
     None => return Err("invalid 'ref' key".into())
   };
@@ -43,7 +58,7 @@ pub fn get_branch(request: &mut Request) -> DeployResult<Branch> {
   }
 }
 
-pub fn check_signature(request: &mut Request, signature: &XHubSignature, secret: &str) -> DeployResult<bool> {
+pub fn check_signature(bytes: &[u8], signature: &XHubSignature, secret: &str) -> DeployResult<bool> {
   let (method, hash) = {
     let mut split = signature.split('=');
     let method = match split.next() {
@@ -60,14 +75,7 @@ pub fn check_signature(request: &mut Request, signature: &XHubSignature, secret:
     return Err("invalid signature method (non-sha1)".into());
   }
   let hash = try!(hex_string_to_bytes(hash));
-  let mut bytes: Vec<u8> = Vec::new();
-  match request.by_ref().read_to_end(&mut bytes) {
-    Ok(_) => {},
-    Err(e) => {
-      return Err(format!("could not read request: {}", e));
-    }
-  }
-  let result = build_sha1_hmac(secret, &bytes).result();
+  let result = build_sha1_hmac(secret, bytes).result();
   let check_against = MacResult::new(&hash);
   Ok(result == check_against)
 }

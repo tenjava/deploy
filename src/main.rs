@@ -13,8 +13,8 @@ use std::thread;
 
 lazy_static! {
   pub static ref SECRET: String = env::var("TENJAVA_DEPLOY_SECRET").expect("missing TENJAVA_DEPLOY_SECRET");
-  pub static ref PROD_REPO: String = env::var("TENJAVA_WEBSITE_REPO").expect("mssing TENJAVA_WEBSITE_PROD_REPO");
-  pub static ref DEV_REPO: String = env::var("TENJAVA_WEBSITE_REPO").expect("mssing TENJAVA_WEBSITE_DEV_REPO");
+  pub static ref PROD_REPO: String = env::var("TENJAVA_WEBSITE_REPO").expect("missing TENJAVA_WEBSITE_PROD_REPO");
+  pub static ref DEV_REPO: String = env::var("TENJAVA_WEBSITE_REPO").expect("missing TENJAVA_WEBSITE_DEV_REPO");
 }
 
 fn deploy_webhook(r: &mut Request) -> PencilResult {

@@ -73,7 +73,7 @@ fn deploy_webhook(r: &mut Request) -> PencilResult {
       println!("  an error occurred while checking branch: {}", e);
       println!("  done");
       let mut res = Response::new(format!("couldn't get branch: {}", e));
-      res.status_code = 401;
+      res.status_code = 500;
       return Ok(res);
     }
   };

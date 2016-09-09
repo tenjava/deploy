@@ -65,7 +65,7 @@ impl CommandFile {
       Branch::Master => &*PROD_REPO,
       Branch::Dev => &*DEV_REPO
     };
-    thread::spawn(move || {
+    let handle = thread::spawn(move || {
       if command.is_empty() {
         println!("no command");
         return;
@@ -101,6 +101,7 @@ impl CommandFile {
         println!("{} exited successfully", command_name);
       }
     });
+    handle.join().unwrap();
   }
 }
 

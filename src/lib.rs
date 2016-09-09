@@ -29,6 +29,7 @@ lazy_static! {
 
 pub type DeployResult<T> = Result<T, String>;
 
+#[derive(Debug, Clone, Copy)]
 pub enum Branch {
   Master,
   Dev
@@ -48,60 +49,60 @@ struct DeployRequest {
   ref_key: String
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub struct CommandFile {
   pub commands: Vec<Vec<String>>
 }
 
 impl CommandFile {
-  pub fn execute(&self, branch: &Branch) {
-    for command in &self.commands {
-      self.execute_command(branch, command.clone());
-    }
+  pub fn execute(self, branch: Branch) {
+    let commands = self.commands.clone();
+    thread::spawn(move || {
+      for command in commands {
+        self.execute_command(branch, command.clone());
+      }
+    });
   }
 
-  fn execute_command(&self, branch: &Branch, command: Vec<String>) {
-    let repo_path = match *branch {
+  fn execute_command(&self, branch: Branch, command: Vec<String>) {
+    let repo_path = match branch {
       Branch::Master => &*PROD_REPO,
       Branch::Dev => &*DEV_REPO
     };
-    let handle = thread::spawn(move || {
-      if command.is_empty() {
-        println!("no command");
+    if command.is_empty() {
+      println!("no command");
+      return;
+    }
+    let command_name = &command[0];
+    let args = if command.len() > 1 {
+      &command[1..]
+    } else {
+      &[]
+    };
+    let status = Command::new(command_name.clone())
+      .args(args)
+      .stdout(Stdio::null())
+      .current_dir(Path::new(repo_path))
+      .status();
+    let status = match status {
+      Ok(r) => r,
+      Err(e) => {
+        println!("could not start {}: {}", command_name, e);
         return;
       }
-      let command_name = &command[0];
-      let args = if command.len() > 1 {
-        &command[1..]
-      } else {
-        &[]
-      };
-      let status = Command::new(command_name.clone())
-        .args(args)
-        .stdout(Stdio::null())
-        .current_dir(Path::new(repo_path))
-        .status();
-      let status = match status {
-        Ok(r) => r,
-        Err(e) => {
-          println!("could not start {}: {}", command_name, e);
-          return;
+    };
+    if !status.success() {
+      match status.code() {
+        Some(code) => {
+          println!("{} exited with code {}", command_name, code);
+        },
+        None => {
+          println!("{} exited with an unknown status code", command_name);
         }
-      };
-      if !status.success() {
-        match status.code() {
-          Some(code) => {
-            println!("{} exited with code {}", command_name, code);
-          },
-          None => {
-            println!("{} exited with an unknown status code", command_name);
-          }
-        }
-      } else {
-        println!("{} exited successfully", command_name);
       }
-    });
-    handle.join().unwrap();
+    } else {
+      println!("{} exited successfully", command_name);
+    }
   }
 }
 

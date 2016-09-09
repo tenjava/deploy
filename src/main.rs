@@ -91,15 +91,15 @@ fn deploy_webhook(r: &mut Request) -> PencilResult {
     }
   };
   println!("  spawning update thread");
-  update_repo(&branch);
+  update_repo(branch);
   println!("  thread spawned");
   println!("  done");
   println!("");
   Ok("deploy initiated".into())
 }
 
-fn update_repo(branch: &Branch) {
-  (&*COMMAND_FILE).execute(branch);
+fn update_repo(branch: Branch) {
+  (&*COMMAND_FILE).clone().execute(branch);
 }
 
 fn inner() -> i32 {

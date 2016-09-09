@@ -2,19 +2,22 @@
 extern crate deploy;
 extern crate dotenv;
 extern crate pencil;
+extern crate serde_json;
 
 use deploy::*;
 use dotenv::dotenv;
 use pencil::{Pencil, Response, Request, PencilResult};
 use std::env;
-use std::path::Path;
-use std::process::{Stdio, Command};
-use std::thread;
+use std::fs::File;
+use std::io::Read;
 
 lazy_static! {
   pub static ref SECRET: String = env::var("TENJAVA_DEPLOY_SECRET").expect("missing TENJAVA_DEPLOY_SECRET");
-  pub static ref PROD_REPO: String = env::var("TENJAVA_WEBSITE_PROD_REPO").expect("missing TENJAVA_WEBSITE_PROD_REPO");
-  pub static ref DEV_REPO: String = env::var("TENJAVA_WEBSITE_DEV_REPO").expect("missing TENJAVA_WEBSITE_DEV_REPO");
+  pub static ref COMMAND_FILE: CommandFile = {
+    let mut json = String::new();
+    File::open("commands.json").expect("no commands.json").read_to_string(&mut json).unwrap();
+    serde_json::from_str(&json).unwrap()
+  };
 }
 
 fn deploy_webhook(r: &mut Request) -> PencilResult {
@@ -96,30 +99,7 @@ fn deploy_webhook(r: &mut Request) -> PencilResult {
 }
 
 fn update_repo(branch: &Branch) {
-  let repo_path = match *branch {
-    Branch::Master => &*PROD_REPO,
-    Branch::Dev => &*DEV_REPO
-  };
-  thread::spawn(move || {
-    let status = Command::new("git")
-      .arg("pull")
-      .stdout(Stdio::null())
-      .current_dir(Path::new(repo_path))
-      .status()
-      .expect("could not start git");
-    if !status.success() {
-      match status.code() {
-        Some(code) => {
-          println!("git exited with code {}", code);
-        },
-        None => {
-          println!("git exited with an unknown status code");
-        }
-      }
-    } else {
-      println!("git exited successfully")
-    }
-  });
+  (&*COMMAND_FILE).execute(branch);
 }
 
 fn inner() -> i32 {
@@ -139,6 +119,7 @@ fn inner() -> i32 {
     println!("oops, no TENJAVA_WEBSITE_DEV_REPO was specified");
     return 1;
   }
+  let _ = &*COMMAND_FILE;
   let mut app = Pencil::new("/static");
   app.post("/deploy", "deploy", deploy_webhook);
   app.run("0.0.0.0:32260");

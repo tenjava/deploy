@@ -2,6 +2,7 @@
 #![plugin(serde_macros)]
 
 #[macro_use] extern crate hyper;
+#[macro_use] extern crate lazy_static;
 extern crate crypto;
 extern crate pencil;
 extern crate serde;
@@ -11,11 +12,20 @@ use crypto::hmac::Hmac;
 use crypto::mac::{Mac, MacResult};
 use crypto::sha1::Sha1;
 use pencil::Request;
+use std::env;
 use std::io::Read;
+use std::path::Path;
+use std::process::{Stdio, Command};
+use std::thread;
 
 header! { (XGitHubEvent, "X-GitHub-Event") => [String] }
 header! { (XGitHubDelivery, "X-GitHub-Delivery") => [String] }
 header! { (XHubSignature, "X-Hub-Signature") => [String] }
+
+lazy_static! {
+  pub static ref PROD_REPO: String = env::var("TENJAVA_WEBSITE_PROD_REPO").expect("missing TENJAVA_WEBSITE_PROD_REPO");
+  pub static ref DEV_REPO: String = env::var("TENJAVA_WEBSITE_DEV_REPO").expect("missing TENJAVA_WEBSITE_DEV_REPO");
+}
 
 pub type DeployResult<T> = Result<T, String>;
 
@@ -38,15 +48,72 @@ struct DeployRequest {
   ref_key: String
 }
 
-pub fn get_branch(bytes: Vec<u8>) -> DeployResult<Branch> {
+#[derive(Deserialize)]
+pub struct CommandFile {
+  pub commands: Vec<Vec<String>>
+}
+
+impl CommandFile {
+  pub fn execute(&self, branch: &Branch) {
+    for command in &self.commands {
+      self.execute_command(branch, command.clone());
+    }
+  }
+
+  fn execute_command(&self, branch: &Branch, command: Vec<String>) {
+    let repo_path = match *branch {
+      Branch::Master => &*PROD_REPO,
+      Branch::Dev => &*DEV_REPO
+    };
+    thread::spawn(move || {
+      if command.is_empty() {
+        println!("no command");
+        return;
+      }
+      let command_name = &command[0];
+      let args = if command.len() > 1 {
+        &command[1..]
+      } else {
+        &[]
+      };
+      let status = Command::new(command_name.clone())
+        .args(args)
+        .stdout(Stdio::null())
+        .current_dir(Path::new(repo_path))
+        .status();
+      let status = match status {
+        Ok(r) => r,
+        Err(e) => {
+          println!("could not start {}: {}", command_name, e);
+          return;
+        }
+      };
+      if !status.success() {
+        match status.code() {
+          Some(code) => {
+            println!("{} exited with code {}", command_name, code);
+          },
+          None => {
+            println!("{} exited with an unknown status code", command_name);
+          }
+        }
+      } else {
+        println!("{} exited successfully", command_name);
+      }
+    });
+  }
+}
+
+fn get_request_from_bytes(bytes: Vec<u8>) -> DeployResult<DeployRequest> {
   let json_string = match String::from_utf8(bytes) {
     Ok(x) => x,
     Err(e) => return Err(format!("could not convert request to string: {}", e))
   };
-  let request: DeployRequest = match serde_json::from_str(&json_string) {
-    Ok(x) => x,
-    Err(e) => return Err(format!("could not process json from request: {}", e))
-  };
+  serde_json::from_str(&json_string).map_err(|x| format!("could not process json from request: {}", x))
+}
+
+pub fn get_branch(bytes: Vec<u8>) -> DeployResult<Branch> {
+  let request = try!(get_request_from_bytes(bytes));
   let branch = match request.ref_key.split('/').last() {
     Some(x) => x,
     None => return Err("invalid 'ref' key".into())
